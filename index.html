@@ -296,6 +296,9 @@
 
                     wellskyData = parseWellskyData(jsonData);
                     
+                    console.log('Raw Excel data:', jsonData);
+                    console.log('Parsed Wellsky data:', wellskyData);
+                    
                     document.getElementById('fileName').textContent = file.name;
                     document.getElementById('rowCount').textContent = wellskyData.length;
                     document.getElementById('fileInfo').classList.remove('hidden');
@@ -536,6 +539,13 @@
             const tbody = document.getElementById('previewTableBody');
             tbody.innerHTML = '';
 
+            if (convertedData.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="18" class="text-center text-muted">No employee data found. Please check your Wellsky file format.</td>';
+                tbody.appendChild(tr);
+                return;
+            }
+
             convertedData.forEach((row, index) => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -667,7 +677,13 @@
                 currentStep++;
                 
                 if (currentStep === 3) {
+                    console.log('Converting to Adams Keegan...');
+                    console.log('Wellsky data:', wellskyData);
+                    console.log('SSN data:', ssnData);
+                    
                     convertToAdamsKeegan();
+                    console.log('Converted data:', convertedData);
+                    
                     renderPreviewTable();
                 }
                 
