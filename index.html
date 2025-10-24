@@ -145,9 +145,10 @@
                         <div class="card-body">
                             <p>Copy and paste SSN data from Google Sheets. Supports multiple formats:</p>
                             <ul>
-                                <li>Tab-separated: Name [tab] SSN</li>
-                                <li>Dash-separated: Name - SSN</li>
-                                <li>Comma-separated: Name, SSN</li>
+                                <li>Tab-separated: <code>Name [tab] SSN</code> or <code>SSN [tab] Name</code></li>
+                                <li>Dash-separated: <code>Name - SSN</code></li>
+                                <li>Comma-separated: <code>Name, SSN</code></li>
+                                <li>Multi-column: <code>SSN [tab] First Name [tab] Middle Name [tab] Last Name</code></li>
                             </ul>
                             <textarea id="ssnTextarea" class="form-control ssn-textarea" 
                                 placeholder="Paste SSN data here..."></textarea>
@@ -373,9 +374,24 @@
 
                 let name, ssn;
                 
-                // Try different separators
+                // Handle tab-separated data (most common from Google Sheets)
                 if (line.includes('\t')) {
-                    [name, ssn] = line.split('\t');
+                    const parts = line.split('\t');
+                    if (parts.length >= 2) {
+                        // Check if first part looks like SSN (contains dashes or is all digits)
+                        const firstPart = parts[0].trim();
+                        const secondPart = parts[1].trim();
+                        
+                        if (firstPart.match(/^\d{3}-?\d{2}-?\d{4}$/) || firstPart.match(/^\d{9}$/)) {
+                            // First column is SSN, rest is name
+                            ssn = firstPart.replace(/\D/g, '');
+                            name = parts.slice(1).join(' ').trim();
+                        } else {
+                            // First column is name, second is SSN
+                            name = firstPart;
+                            ssn = secondPart.replace(/\D/g, '');
+                        }
+                    }
                 } else if (line.includes(' - ')) {
                     [name, ssn] = line.split(' - ');
                 } else if (line.includes(',')) {
