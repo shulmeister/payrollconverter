@@ -1,6 +1,6 @@
-# Wellsky to Adams Keegan Payroll Converter
+# Adams Keegan Payroll Converter
 
-A simple static web application that converts Wellsky payroll Excel files to Adams Keegan format. This application runs entirely in the browser with no backend required.
+A simple static web application that converts payroll Excel files to Adams Keegan format. This application runs entirely in the browser with no backend required.
 
 ## Features
 
