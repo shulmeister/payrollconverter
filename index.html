@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wellsky to Adams Keegan Converter</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        .upload-area {
+            border: 2px dashed #007bff;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            background-color: #f8f9fa;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            border-color: #0056b3;
+            background-color: #e9ecef;
+        }
+        .upload-area.dragover {
+            border-color: #28a745;
+            background-color: #d4edda;
+        }
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        .step {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 10px;
+            font-weight: bold;
+            color: #6c757d;
+        }
+        .step.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .step.completed {
+            background-color: #28a745;
+            color: white;
+        }
+        .step-line {
+            width: 50px;
+            height: 2px;
+            background-color: #e9ecef;
+            margin-top: 19px;
+        }
+        .step-line.completed {
+            background-color: #28a745;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .ssn-textarea {
+            min-height: 200px;
+            font-family: monospace;
+        }
+        .preview-table {
+            font-size: 0.9em;
+        }
+        .preview-table th,
+        .preview-table td {
+            padding: 0.3rem;
+            vertical-align: middle;
+        }
+        .preview-table input {
+            border: none;
+            background: transparent;
+            width: 100%;
+            padding: 0.2rem;
+        }
+        .preview-table input:focus {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            outline: none;
+        }
+        .status-message {
+            margin-top: 15px;
+        }
+        .btn-delete {
+            padding: 0.2rem 0.5rem;
+            font-size: 0.8em;
+        }
+        .file-info {
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <h1 class="text-center mb-4">Wellsky to Adams Keegan Converter</h1>
+                
+                <!-- Step Indicator -->
+                <div class="step-indicator">
+                    <div class="step active" id="step1-indicator">1</div>
+                    <div class="step-line"></div>
+                    <div class="step" id="step2-indicator">2</div>
+                    <div class="step-line"></div>
+                    <div class="step" id="step3-indicator">3</div>
+                </div>
+
+                <!-- Step 1: File Upload -->
+                <div id="step1" class="step-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Step 1: Upload Wellsky Excel File</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="upload-area" id="uploadArea">
+                                <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                                <h4>Drag & Drop Excel File Here</h4>
+                                <p>or click to browse</p>
+                                <input type="file" id="fileInput" accept=".xlsx,.xls" style="display: none;">
+                            </div>
+                            <div id="fileInfo" class="file-info hidden">
+                                <strong>File loaded:</strong> <span id="fileName"></span><br>
+                                <strong>Rows processed:</strong> <span id="rowCount"></span>
+                            </div>
+                            <div id="step1-message" class="status-message"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: SSN Management -->
+                <div id="step2" class="step-content hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Step 2: Import SSNs</h3>
+                        </div>
+                        <div class="card-body">
+                            <p>Copy and paste SSN data from Google Sheets. Supports multiple formats:</p>
+                            <ul>
+                                <li>Tab-separated: Name [tab] SSN</li>
+                                <li>Dash-separated: Name - SSN</li>
+                                <li>Comma-separated: Name, SSN</li>
+                            </ul>
+                            <textarea id="ssnTextarea" class="form-control ssn-textarea" 
+                                placeholder="Paste SSN data here..."></textarea>
+                            <div class="mt-3">
+                                <button id="importSsns" class="btn btn-primary">Import SSNs</button>
+                                <button id="clearSsns" class="btn btn-warning">Clear All</button>
+                                <button id="viewSsns" class="btn btn-info">View Current SSNs</button>
+                            </div>
+                            <div id="ssnStatus" class="status-message"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Preview & Download -->
+                <div id="step3" class="step-content hidden">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Step 3: Preview & Download Adams Keegan Format</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <button id="addEmployee" class="btn btn-success">Add New Employee</button>
+                                <button id="downloadExcel" class="btn btn-primary">Download Excel File</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped preview-table" id="previewTable">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Caregiver</th>
+                                            <th>SSN</th>
+                                            <th>Total Hours</th>
+                                            <th>Reg Hours</th>
+                                            <th>OT (1.5x)</th>
+                                            <th>DOT (2x)</th>
+                                            <th>Miles</th>
+                                            <th>Holiday</th>
+                                            <th>Hourly (1.5X)</th>
+                                            <th>Live In Hours</th>
+                                            <th>Live In/Hourly</th>
+                                            <th>Per Visit</th>
+                                            <th>Holiday Live In/Hourly (1.5X)</th>
+                                            <th>No of visit</th>
+                                            <th>Base Rate</th>
+                                            <th>Method</th>
+                                            <th>Expense Reimbursement</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="previewTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="step3-message" class="status-message"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Buttons -->
+                <div class="text-center mt-4">
+                    <button id="nextBtn" class="btn btn-primary hidden">Next Step</button>
+                    <button id="prevBtn" class="btn btn-secondary hidden">Previous Step</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let wellskyData = [];
+        let ssnData = {};
+        let convertedData = [];
+        let currentStep = 1;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeEventListeners();
+            updateStepIndicator();
+        });
+
+        function initializeEventListeners() {
+            // File upload
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            
+            uploadArea.addEventListener('click', () => fileInput.click());
+            uploadArea.addEventListener('dragover', handleDragOver);
+            uploadArea.addEventListener('dragleave', handleDragLeave);
+            uploadArea.addEventListener('drop', handleDrop);
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // SSN management
+            document.getElementById('importSsns').addEventListener('click', importSsns);
+            document.getElementById('clearSsns').addEventListener('click', clearSsns);
+            document.getElementById('viewSsns').addEventListener('click', viewSsns);
+
+            // Navigation
+            document.getElementById('nextBtn').addEventListener('click', nextStep);
+            document.getElementById('prevBtn').addEventListener('click', prevStep);
+
+            // Step 3 actions
+            document.getElementById('addEmployee').addEventListener('click', addNewEmployee);
+            document.getElementById('downloadExcel').addEventListener('click', downloadExcel);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                processFile(file);
+            }
+        }
+
+        function processFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                showMessage('step1-message', 'Please select a valid Excel file (.xlsx or .xls)', 'danger');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    wellskyData = parseWellskyData(jsonData);
+                    
+                    document.getElementById('fileName').textContent = file.name;
+                    document.getElementById('rowCount').textContent = wellskyData.length;
+                    document.getElementById('fileInfo').classList.remove('hidden');
+                    
+                    showMessage('step1-message', `Successfully loaded ${wellskyData.length} employee records`, 'success');
+                    enableNextStep();
+                } catch (error) {
+                    showMessage('step1-message', 'Error reading file: ' + error.message, 'danger');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function parseWellskyData(jsonData) {
+            const employees = [];
+            let currentEmployee = null;
+
+            for (let i = 0; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (!row || row.length === 0) continue;
+
+                const name = row[0] ? row[0].toString().trim() : '';
+                
+                // Check if this is an employee name row (no hours data)
+                if (name && !row[1] && !row[2] && !row[3] && !row[4] && !row[5] && !row[6] && !row[7]) {
+                    // Save previous employee if exists
+                    if (currentEmployee) {
+                        employees.push(currentEmployee);
+                    }
+                    
+                    // Start new employee
+                    currentEmployee = {
+                        name: name,
+                        details: []
+                    };
+                } else if (currentEmployee && name && (row[1] || row[2] || row[3] || row[4] || row[5] || row[6] || row[7])) {
+                    // This is a detail row
+                    const detail = {
+                        totalHours: parseFloat(row[1]) || 0,
+                        regHours: parseFloat(row[2]) || 0,
+                        ot: parseFloat(row[3]) || 0,
+                        dt: parseFloat(row[4]) || 0,
+                        miles: parseFloat(row[5]) || 0,
+                        baseRate: parseFloat(row[6]) || 0,
+                        method: row[7] ? row[7].toString().trim() : '',
+                        amount: parseFloat(row[8]) || 0
+                    };
+                    currentEmployee.details.push(detail);
+                }
+            }
+
+            // Add the last employee
+            if (currentEmployee) {
+                employees.push(currentEmployee);
+            }
+
+            return employees;
+        }
+
+        function importSsns() {
+            const textarea = document.getElementById('ssnTextarea');
+            const text = textarea.value.trim();
+            
+            if (!text) {
+                showMessage('ssnStatus', 'Please enter SSN data', 'warning');
+                return;
+            }
+
+            const lines = text.split('\n');
+            let newCount = 0;
+            let updatedCount = 0;
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (!line) return;
+
+                let name, ssn;
+                
+                // Try different separators
+                if (line.includes('\t')) {
+                    [name, ssn] = line.split('\t');
+                } else if (line.includes(' - ')) {
+                    [name, ssn] = line.split(' - ');
+                } else if (line.includes(',')) {
+                    [name, ssn] = line.split(',');
+                } else {
+                    return; // Skip invalid lines
+                }
+
+                name = name.trim();
+                ssn = ssn.trim().replace(/\D/g, ''); // Remove non-digits
+
+                if (name && ssn && ssn.length === 9) {
+                    if (ssnData[name]) {
+                        updatedCount++;
+                    } else {
+                        newCount++;
+                    }
+                    ssnData[name] = ssn;
+                }
+            });
+
+            const totalSsns = Object.keys(ssnData).length;
+            showMessage('ssnStatus', 
+                `${totalSsns} SSNs loaded (${newCount} new, ${updatedCount} updated)`, 
+                'success');
+            
+            textarea.value = '';
+            enableNextStep();
+        }
+
+        function clearSsns() {
+            ssnData = {};
+            showMessage('ssnStatus', 'All SSNs cleared', 'info');
+        }
+
+        function viewSsns() {
+            const ssnList = Object.entries(ssnData)
+                .map(([name, ssn]) => `${name}: ${ssn}`)
+                .join('\n');
+            
+            if (ssnList) {
+                alert('Current SSNs:\n\n' + ssnList);
+            } else {
+                alert('No SSNs loaded');
+            }
+        }
+
+        function convertToAdamsKeegan() {
+            convertedData = [];
+
+            wellskyData.forEach(employee => {
+                const employeeName = employee.name;
+                const ssn = ssnData[employeeName] || '';
+
+                // Group details by base rate
+                const rateGroups = {};
+                let miles = 0;
+                let expenseReimbursement = 0;
+
+                employee.details.forEach(detail => {
+                    // Collect miles and expenses for first row
+                    if (detail.method.toLowerCase() === 'per mile') {
+                        miles += detail.miles;
+                    }
+                    if (detail.method.toLowerCase() === 'not payable') {
+                        expenseReimbursement += detail.amount;
+                    }
+
+                    // Group by base rate
+                    const rate = detail.baseRate;
+                    if (!rateGroups[rate]) {
+                        rateGroups[rate] = {
+                            totalHours: 0,
+                            regHours: 0,
+                            ot: 0,
+                            dt: 0,
+                            baseRate: rate,
+                            method: detail.method
+                        };
+                    }
+
+                    rateGroups[rate].totalHours += detail.totalHours;
+                    rateGroups[rate].regHours += detail.regHours;
+                    rateGroups[rate].ot += detail.ot;
+                    rateGroups[rate].dt += detail.dt;
+                });
+
+                // Create rows for each rate group
+                const rates = Object.keys(rateGroups).sort((a, b) => parseFloat(a) - parseFloat(b));
+                
+                rates.forEach((rate, index) => {
+                    const group = rateGroups[rate];
+                    const row = {
+                        caregiver: employeeName,
+                        ssn: ssn,
+                        totalHours: group.totalHours,
+                        regHours: group.regHours,
+                        ot: group.ot,
+                        dt: group.dt,
+                        miles: index === 0 ? miles : 0, // Only on first row
+                        holiday: 0,
+                        hourly15x: 0,
+                        liveInHours: 0,
+                        liveInHourly: 0,
+                        perVisit: 0,
+                        holidayLiveInHourly15x: 0,
+                        noOfVisit: 0,
+                        baseRate: group.baseRate,
+                        method: group.method,
+                        expenseReimbursement: index === 0 ? expenseReimbursement : 0 // Only on first row
+                    };
+                    convertedData.push(row);
+                });
+
+                // If employee has only miles/expenses (no hours), create a row with zeros
+                if (rates.length === 0 && (miles > 0 || expenseReimbursement > 0)) {
+                    const row = {
+                        caregiver: employeeName,
+                        ssn: ssn,
+                        totalHours: 0,
+                        regHours: 0,
+                        ot: 0,
+                        dt: 0,
+                        miles: miles,
+                        holiday: 0,
+                        hourly15x: 0,
+                        liveInHours: 0,
+                        liveInHourly: 0,
+                        perVisit: 0,
+                        holidayLiveInHourly15x: 0,
+                        noOfVisit: 0,
+                        baseRate: 0,
+                        method: '',
+                        expenseReimbursement: expenseReimbursement
+                    };
+                    convertedData.push(row);
+                }
+            });
+        }
+
+        function renderPreviewTable() {
+            const tbody = document.getElementById('previewTableBody');
+            tbody.innerHTML = '';
+
+            convertedData.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" value="${row.caregiver}" data-field="caregiver" data-index="${index}"></td>
+                    <td><input type="text" value="${row.ssn}" data-field="ssn" data-index="${index}" maxlength="9"></td>
+                    <td><input type="number" value="${row.totalHours}" data-field="totalHours" data-index="${index}" step="0.01"></td>
+                    <td><input type="number" value="${row.regHours}" data-field="regHours" data-index="${index}" step="0.01"></td>
+                    <td><input type="number" value="${row.ot}" data-field="ot" data-index="${index}" step="0.01"></td>
+                    <td><input type="number" value="${row.dt}" data-field="dt" data-index="${index}" step="0.01"></td>
+                    <td><input type="number" value="${row.miles}" data-field="miles" data-index="${index}" step="0.01"></td>
+                    <td><input type="number" value="${row.holiday}" data-field="holiday" data-index="${index}" step="0.01" readonly></td>
+                    <td><input type="number" value="${row.hourly15x}" data-field="hourly15x" data-index="${index}" step="0.01" readonly></td>
+                    <td><input type="number" value="${row.liveInHours}" data-field="liveInHours" data-index="${index}" step="0.01" readonly></td>
+                    <td><input type="number" value="${row.liveInHourly}" data-field="liveInHourly" data-index="${index}" step="0.01" readonly></td>
+                    <td><input type="number" value="${row.perVisit}" data-field="perVisit" data-index="${index}" step="0.01" readonly></td>
+                    <td><input type="number" value="${row.holidayLiveInHourly15x}" data-field="holidayLiveInHourly15x" data-index="${index}" step="0.01" readonly></td>
+                    <td><input type="number" value="${row.noOfVisit}" data-field="noOfVisit" data-index="${index}" step="0.01" readonly></td>
+                    <td><input type="number" value="${row.baseRate}" data-field="baseRate" data-index="${index}" step="0.01"></td>
+                    <td><input type="text" value="${row.method}" data-field="method" data-index="${index}"></td>
+                    <td><input type="number" value="${row.expenseReimbursement}" data-field="expenseReimbursement" data-index="${index}" step="0.01"></td>
+                    <td><button class="btn btn-danger btn-sm btn-delete" onclick="deleteRow(${index})">Delete</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Add event listeners for input changes
+            tbody.querySelectorAll('input').forEach(input => {
+                input.addEventListener('change', updateDataFromInput);
+            });
+        }
+
+        function updateDataFromInput(e) {
+            const field = e.target.dataset.field;
+            const index = parseInt(e.target.dataset.index);
+            const value = e.target.value;
+
+            if (field === 'ssn') {
+                // Format SSN input
+                const digits = value.replace(/\D/g, '');
+                if (digits.length <= 9) {
+                    convertedData[index][field] = digits;
+                    e.target.value = digits;
+                }
+            } else if (field === 'totalHours' || field === 'regHours' || field === 'ot' || field === 'dt' || 
+                      field === 'miles' || field === 'baseRate' || field === 'expenseReimbursement') {
+                convertedData[index][field] = parseFloat(value) || 0;
+            } else {
+                convertedData[index][field] = value;
+            }
+        }
+
+        function deleteRow(index) {
+            convertedData.splice(index, 1);
+            renderPreviewTable();
+        }
+
+        function addNewEmployee() {
+            const newEmployee = {
+                caregiver: '',
+                ssn: '',
+                totalHours: 0,
+                regHours: 0,
+                ot: 0,
+                dt: 0,
+                miles: 0,
+                holiday: 0,
+                hourly15x: 0,
+                liveInHours: 0,
+                liveInHourly: 0,
+                perVisit: 0,
+                holidayLiveInHourly15x: 0,
+                noOfVisit: 0,
+                baseRate: 0,
+                method: '',
+                expenseReimbursement: 0
+            };
+            convertedData.push(newEmployee);
+            renderPreviewTable();
+        }
+
+        function downloadExcel() {
+            if (convertedData.length === 0) {
+                showMessage('step3-message', 'No data to download', 'warning');
+                return;
+            }
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            
+            // Convert data to worksheet format
+            const wsData = [
+                ['Caregiver', 'SSN', 'Total Hours', 'Reg Hours', 'OT (1.5x)', 'DOT (2x)', 'Miles', 
+                 'Holiday', 'Hourly (1.5X)', 'Live In Hours', 'Live In/Hourly', 'Per Visit', 
+                 'Holiday Live In/Hourly (1.5X)', 'No of visit', 'Base Rate', 'Method', 'Expense reimbursement']
+            ];
+
+            convertedData.forEach(row => {
+                wsData.push([
+                    row.caregiver,
+                    row.ssn,
+                    row.totalHours,
+                    row.regHours,
+                    row.ot,
+                    row.dt,
+                    row.miles,
+                    row.holiday,
+                    row.hourly15x,
+                    row.liveInHours,
+                    row.liveInHourly,
+                    row.perVisit,
+                    row.holidayLiveInHourly15x,
+                    row.noOfVisit,
+                    row.baseRate,
+                    row.method,
+                    row.expenseReimbursement
+                ]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Adams Keegan Format');
+            
+            // Download file
+            XLSX.writeFile(wb, 'Adams_Keegan_Payroll.xlsx');
+            showMessage('step3-message', 'Excel file downloaded successfully!', 'success');
+        }
+
+        function nextStep() {
+            if (currentStep < 3) {
+                currentStep++;
+                
+                if (currentStep === 3) {
+                    convertToAdamsKeegan();
+                    renderPreviewTable();
+                }
+                
+                updateStepIndicator();
+                updateStepVisibility();
+            }
+        }
+
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                updateStepIndicator();
+                updateStepVisibility();
+            }
+        }
+
+        function updateStepIndicator() {
+            for (let i = 1; i <= 3; i++) {
+                const indicator = document.getElementById(`step${i}-indicator`);
+                indicator.classList.remove('active', 'completed');
+                
+                if (i < currentStep) {
+                    indicator.classList.add('completed');
+                } else if (i === currentStep) {
+                    indicator.classList.add('active');
+                }
+            }
+
+            // Update step lines
+            for (let i = 1; i <= 2; i++) {
+                const line = document.querySelector(`.step-line:nth-child(${i * 2})`);
+                if (i < currentStep) {
+                    line.classList.add('completed');
+                } else {
+                    line.classList.remove('completed');
+                }
+            }
+        }
+
+        function updateStepVisibility() {
+            for (let i = 1; i <= 3; i++) {
+                const step = document.getElementById(`step${i}`);
+                if (i === currentStep) {
+                    step.classList.remove('hidden');
+                } else {
+                    step.classList.add('hidden');
+                }
+            }
+
+            // Update navigation buttons
+            const nextBtn = document.getElementById('nextBtn');
+            const prevBtn = document.getElementById('prevBtn');
+            
+            if (currentStep === 1) {
+                nextBtn.classList.remove('hidden');
+                prevBtn.classList.add('hidden');
+            } else if (currentStep === 3) {
+                nextBtn.classList.add('hidden');
+                prevBtn.classList.remove('hidden');
+            } else {
+                nextBtn.classList.remove('hidden');
+                prevBtn.classList.remove('hidden');
+            }
+        }
+
+        function enableNextStep() {
+            const nextBtn = document.getElementById('nextBtn');
+            nextBtn.classList.remove('hidden');
+        }
+
+        function showMessage(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            
+            // Auto-hide success messages after 3 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    element.innerHTML = '';
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>
