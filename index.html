@@ -353,6 +353,11 @@
                     const method = row[7] ? row[7].toString().trim() : '';
                     const amount = parseFloat(row[8]) || 0;
                     
+                    console.log(`  -> Detail row raw data:`, {
+                        col0: row[0], col1: row[1], col2: row[2], col3: row[3], col4: row[4], 
+                        col5: row[5], col6: row[6], col7: row[7], col8: row[8]
+                    });
+                    
                     // Only add if there's actual data (not just zeros)
                     if (totalHours > 0 || regHours > 0 || ot > 0 || dt > 0 || miles > 0 || baseRate > 0 || amount > 0) {
                         const detail = {
