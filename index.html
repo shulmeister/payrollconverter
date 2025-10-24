@@ -720,9 +720,17 @@
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             XLSX.utils.book_append_sheet(wb, ws, 'Adams Keegan Format');
             
+            // Generate filename with current date
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
+            const filename = `Adams_Keegan_Payroll_${dateString}.xlsx`;
+            
             // Download file
-            XLSX.writeFile(wb, 'Adams_Keegan_Payroll.xlsx');
-            showMessage('step3-message', 'Excel file downloaded successfully!', 'success');
+            XLSX.writeFile(wb, filename);
+            showMessage('step3-message', `Excel file downloaded successfully as ${filename}!`, 'success');
         }
 
         function nextStep() {
