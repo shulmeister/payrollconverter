@@ -316,17 +316,25 @@
             const employees = [];
             let currentEmployee = null;
 
+            console.log('Parsing Wellsky data, total rows:', jsonData.length);
+
             for (let i = 0; i < jsonData.length; i++) {
                 const row = jsonData[i];
                 if (!row || row.length === 0) continue;
 
                 const name = row[0] ? row[0].toString().trim() : '';
                 
+                console.log(`Row ${i}:`, row, 'Name:', name);
+                
                 // Check if this is an employee name row (no hours data)
-                if (name && !row[1] && !row[2] && !row[3] && !row[4] && !row[5] && !row[6] && !row[7]) {
+                // Look for rows where only column A has data and other columns are empty or have headers
+                if (name && row.length >= 1 && (!row[1] || row[1] === '' || row[1] === 'Total Hours' || row[1] === 'Reg Hours')) {
+                    console.log(`  -> Employee name row detected: ${name}`);
+                    
                     // Save previous employee if exists
                     if (currentEmployee) {
                         employees.push(currentEmployee);
+                        console.log(`  -> Saved previous employee: ${currentEmployee.name} with ${currentEmployee.details.length} details`);
                     }
                     
                     // Start new employee
@@ -334,27 +342,42 @@
                         name: name,
                         details: []
                     };
-                } else if (currentEmployee && name && (row[1] || row[2] || row[3] || row[4] || row[5] || row[6] || row[7])) {
-                    // This is a detail row
-                    const detail = {
-                        totalHours: parseFloat(row[1]) || 0,
-                        regHours: parseFloat(row[2]) || 0,
-                        ot: parseFloat(row[3]) || 0,
-                        dt: parseFloat(row[4]) || 0,
-                        miles: parseFloat(row[5]) || 0,
-                        baseRate: parseFloat(row[6]) || 0,
-                        method: row[7] ? row[7].toString().trim() : '',
-                        amount: parseFloat(row[8]) || 0
-                    };
-                    currentEmployee.details.push(detail);
+                } else if (currentEmployee && row.length >= 9 && row[1] !== undefined && row[1] !== '') {
+                    // This is a detail row - check if it has numeric data in the right columns
+                    const totalHours = parseFloat(row[1]) || 0;
+                    const regHours = parseFloat(row[2]) || 0;
+                    const ot = parseFloat(row[3]) || 0;
+                    const dt = parseFloat(row[4]) || 0;
+                    const miles = parseFloat(row[5]) || 0;
+                    const baseRate = parseFloat(row[6]) || 0;
+                    const method = row[7] ? row[7].toString().trim() : '';
+                    const amount = parseFloat(row[8]) || 0;
+                    
+                    // Only add if there's actual data (not just zeros)
+                    if (totalHours > 0 || regHours > 0 || ot > 0 || dt > 0 || miles > 0 || baseRate > 0 || amount > 0) {
+                        const detail = {
+                            totalHours: totalHours,
+                            regHours: regHours,
+                            ot: ot,
+                            dt: dt,
+                            miles: miles,
+                            baseRate: baseRate,
+                            method: method,
+                            amount: amount
+                        };
+                        currentEmployee.details.push(detail);
+                        console.log(`  -> Added detail row:`, detail);
+                    }
                 }
             }
 
             // Add the last employee
             if (currentEmployee) {
                 employees.push(currentEmployee);
+                console.log(`Final employee saved: ${currentEmployee.name} with ${currentEmployee.details.length} details`);
             }
 
+            console.log('Final parsed employees:', employees);
             return employees;
         }
 
