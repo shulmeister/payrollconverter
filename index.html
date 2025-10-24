@@ -444,23 +444,31 @@
 
         function convertToAdamsKeegan() {
             convertedData = [];
+            console.log('Starting conversion with', wellskyData.length, 'employees');
 
-            wellskyData.forEach(employee => {
+            wellskyData.forEach((employee, empIndex) => {
+                console.log(`Processing employee ${empIndex + 1}:`, employee);
+                
                 const employeeName = employee.name;
                 const ssn = ssnData[employeeName] || '';
+                console.log(`Employee: ${employeeName}, SSN: ${ssn}, Details:`, employee.details);
 
                 // Group details by base rate
                 const rateGroups = {};
                 let miles = 0;
                 let expenseReimbursement = 0;
 
-                employee.details.forEach(detail => {
+                employee.details.forEach((detail, detailIndex) => {
+                    console.log(`  Detail ${detailIndex + 1}:`, detail);
+                    
                     // Collect miles and expenses for first row
-                    if (detail.method.toLowerCase() === 'per mile') {
+                    if (detail.method && detail.method.toLowerCase() === 'per mile') {
                         miles += detail.miles;
+                        console.log(`    Added miles: ${detail.miles}`);
                     }
-                    if (detail.method.toLowerCase() === 'not payable') {
+                    if (detail.method && detail.method.toLowerCase() === 'not payable') {
                         expenseReimbursement += detail.amount;
+                        console.log(`    Added expense: ${detail.amount}`);
                     }
 
                     // Group by base rate
@@ -474,16 +482,22 @@
                             baseRate: rate,
                             method: detail.method
                         };
+                        console.log(`    Created new rate group for rate: ${rate}`);
                     }
 
                     rateGroups[rate].totalHours += detail.totalHours;
                     rateGroups[rate].regHours += detail.regHours;
                     rateGroups[rate].ot += detail.ot;
                     rateGroups[rate].dt += detail.dt;
+                    console.log(`    Updated rate group ${rate}:`, rateGroups[rate]);
                 });
+
+                console.log(`  Final rate groups:`, rateGroups);
+                console.log(`  Miles: ${miles}, Expenses: ${expenseReimbursement}`);
 
                 // Create rows for each rate group
                 const rates = Object.keys(rateGroups).sort((a, b) => parseFloat(a) - parseFloat(b));
+                console.log(`  Rates to process:`, rates);
                 
                 rates.forEach((rate, index) => {
                     const group = rateGroups[rate];
@@ -506,6 +520,7 @@
                         method: group.method,
                         expenseReimbursement: index === 0 ? expenseReimbursement : 0 // Only on first row
                     };
+                    console.log(`    Created row for rate ${rate}:`, row);
                     convertedData.push(row);
                 });
 
@@ -530,9 +545,12 @@
                         method: '',
                         expenseReimbursement: expenseReimbursement
                     };
+                    console.log(`    Created zero-hours row:`, row);
                     convertedData.push(row);
                 }
             });
+            
+            console.log('Final converted data:', convertedData);
         }
 
         function renderPreviewTable() {
