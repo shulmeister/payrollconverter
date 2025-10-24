@@ -342,7 +342,7 @@
                         name: name,
                         details: []
                     };
-                } else if (currentEmployee && row.length >= 9 && row[1] !== undefined && row[1] !== '') {
+                } else if (currentEmployee && row.length >= 9) {
                     // This is a detail row - check if it has numeric data in the right columns
                     const totalHours = parseFloat(row[1]) || 0;
                     const regHours = parseFloat(row[2]) || 0;
@@ -358,7 +358,12 @@
                         col5: row[5], col6: row[6], col7: row[7], col8: row[8]
                     });
                     
-                    // Only add if there's actual data (not just zeros)
+                    // Check specifically for mileage rows
+                    if (miles > 0) {
+                        console.log(`  -> MILEAGE DETECTED: ${miles} miles in method: "${method}"`);
+                    }
+                    
+                    // Only add if there's actual data (not just zeros) OR if it's a mileage-only row
                     if (totalHours > 0 || regHours > 0 || ot > 0 || dt > 0 || miles > 0 || baseRate > 0 || amount > 0) {
                         const detail = {
                             totalHours: totalHours,
@@ -372,6 +377,8 @@
                         };
                         currentEmployee.details.push(detail);
                         console.log(`  -> Added detail row:`, detail);
+                    } else {
+                        console.log(`  -> Skipped row (all zeros):`, row);
                     }
                 }
             }
