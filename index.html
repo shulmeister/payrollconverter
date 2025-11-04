@@ -759,21 +759,29 @@
                 ssn = ssn.trim().replace(/\D/g, ''); // Remove non-digits
 
                 if (name && ssn && ssn.length === 9) {
-                    // Normalize name for consistent matching (store both original and normalized)
-                    const normalizedName = name.toLowerCase().trim().replace(/\s+/g, ' ');
+                    // Normalize name for consistent matching (same as findSsnByName)
+                    const normalize = (str) => {
+                        return str.toLowerCase().trim().replace(/[,\.]+$/, '').replace(/\s+/g, ' ').trim();
+                    };
                     
-                    // Store with normalized name as key for better matching
-                    // But also store original name mapping for display
+                    const normalizedName = normalize(name);
+                    
+                    // Store with normalized name as primary key
                     if (ssnData[normalizedName]) {
                         updatedCount++;
                     } else {
                         newCount++;
                     }
                     ssnData[normalizedName] = ssn;
-                    // Also store original name mapping for display/fallback
-                    if (normalizedName !== name) {
-                        ssnData[name] = ssn;
+                    
+                    // Also store original name (normalized) for fallback matching
+                    const originalNormalized = name.toLowerCase().trim().replace(/\s+/g, ' ');
+                    if (originalNormalized !== normalizedName) {
+                        ssnData[originalNormalized] = ssn;
                     }
+                    
+                    // Store with original casing too (for display/debugging)
+                    ssnData[name] = ssn;
                 }
             });
 
@@ -806,46 +814,61 @@
         function findSsnByName(name) {
             if (!name) return '';
             
-            // Normalize the name for matching
+            // Normalize the name for matching - remove trailing commas, extra spaces, etc.
             const normalize = (str) => {
-                return str.toLowerCase().trim().replace(/\s+/g, ' ');
+                return str.toLowerCase().trim().replace(/[,\.]+$/, '').replace(/\s+/g, ' ').trim();
             };
             
             const normalizedName = normalize(name);
+            console.log(`Looking up SSN for: "${name}" (normalized: "${normalizedName}")`);
             
-            // Try exact match first (case-insensitive)
-            for (const [ssnName, ssn] of Object.entries(ssnData)) {
-                if (normalize(ssnName) === normalizedName) {
-                    console.log(`Exact match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
-                    return ssn;
-                }
-            }
-            
-            // Try partial match (contains or is contained)
+            // Try exact match first (case-insensitive, handles trailing commas)
             for (const [ssnName, ssn] of Object.entries(ssnData)) {
                 const normalizedSsnName = normalize(ssnName);
-                if (normalizedName.includes(normalizedSsnName) || normalizedSsnName.includes(normalizedName)) {
-                    console.log(`Partial match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                if (normalizedSsnName === normalizedName) {
+                    console.log(`✓ Exact match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
                     return ssn;
                 }
             }
             
-            // Try matching by last name (for cases like "Last, First" vs "First Last")
-            const nameParts = normalizedName.split(/[,\s]+/).filter(p => p.length > 0);
-            if (nameParts.length >= 2) {
+            // Try matching first word/last name (for truncated names like "Aldan-Mu" matching "Aldan-Mu, John")
+            const nameWords = normalizedName.split(/[,\s]+/).filter(p => p.length > 0);
+            if (nameWords.length > 0) {
+                const firstWord = nameWords[0];
+                const lastWord = nameWords[nameWords.length - 1];
+                
                 for (const [ssnName, ssn] of Object.entries(ssnData)) {
-                    const ssnNameParts = normalize(ssnName).split(/[,\s]+/).filter(p => p.length > 0);
-                    // Check if last names match
-                    const lastName1 = nameParts[nameParts.length - 1];
-                    const lastName2 = ssnNameParts[ssnNameParts.length - 1];
-                    if (lastName1 === lastName2 && lastName1.length > 2) {
-                        console.log(`Last name match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                    const normalizedSsnName = normalize(ssnName);
+                    const ssnWords = normalizedSsnName.split(/[,\s]+/).filter(p => p.length > 0);
+                    
+                    // Check if first word matches (handles truncated names)
+                    if (ssnWords.length > 0 && ssnWords[0] === firstWord && firstWord.length > 3) {
+                        console.log(`✓ First word match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                        return ssn;
+                    }
+                    
+                    // Check if last name matches
+                    if (ssnWords.length > 0 && ssnWords[ssnWords.length - 1] === lastWord && lastWord.length > 2) {
+                        console.log(`✓ Last name match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
                         return ssn;
                     }
                 }
             }
             
-            console.log(`No SSN match found for: "${name}"`);
+            // Try partial match (one name contains the other) - be more conservative
+            for (const [ssnName, ssn] of Object.entries(ssnData)) {
+                const normalizedSsnName = normalize(ssnName);
+                // Only match if the shorter name is at least 4 characters and is contained in the longer
+                const shorter = normalizedName.length < normalizedSsnName.length ? normalizedName : normalizedSsnName;
+                const longer = normalizedName.length >= normalizedSsnName.length ? normalizedName : normalizedSsnName;
+                if (shorter.length >= 4 && longer.includes(shorter)) {
+                    console.log(`✓ Partial match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                    return ssn;
+                }
+            }
+            
+            console.log(`✗ No SSN match found for: "${name}"`);
+            console.log(`Available SSN names:`, Object.keys(ssnData));
             return '';
         }
 
