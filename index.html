@@ -814,13 +814,25 @@
         function findSsnByName(name) {
             if (!name) return '';
             
-            // Normalize the name for matching - remove trailing commas, extra spaces, etc.
+            // Normalize the name for matching - remove trailing commas, extra spaces, quotes, etc.
             const normalize = (str) => {
-                return str.toLowerCase().trim().replace(/[,\.]+$/, '').replace(/\s+/g, ' ').trim();
+                return str.toLowerCase().trim()
+                    .replace(/["']/g, '') // Remove quotes
+                    .replace(/[,\.]+$/, '') // Remove trailing commas/periods
+                    .replace(/\s+/g, ' ') // Normalize whitespace
+                    .trim();
             };
             
             const normalizedName = normalize(name);
             console.log(`Looking up SSN for: "${name}" (normalized: "${normalizedName}")`);
+            
+            // Extract all words from the name (handles "Last, First" and "First Last" formats)
+            const getNameWords = (nameStr) => {
+                return normalize(nameStr).split(/[,\s]+/).filter(p => p.length > 0);
+            };
+            
+            const nameWords = getNameWords(name);
+            const nameWordsSet = new Set(nameWords);
             
             // Try exact match first (case-insensitive, handles trailing commas)
             for (const [ssnName, ssn] of Object.entries(ssnData)) {
@@ -831,25 +843,54 @@
                 }
             }
             
-            // Try matching first word/last name (for truncated names like "Aldan-Mu" matching "Aldan-Mu, John")
-            const nameWords = normalizedName.split(/[,\s]+/).filter(p => p.length > 0);
-            if (nameWords.length > 0) {
-                const firstWord = nameWords[0];
-                const lastWord = nameWords[nameWords.length - 1];
+            // Try matching by same words regardless of order (handles "Last, First" vs "First Last")
+            for (const [ssnName, ssn] of Object.entries(ssnData)) {
+                const ssnWords = getNameWords(ssnName);
+                const ssnWordsSet = new Set(ssnWords);
+                
+                // Check if both names have the same words (order doesn't matter)
+                if (nameWords.length === ssnWords.length && 
+                    nameWords.length > 0 &&
+                    nameWords.every(w => ssnWordsSet.has(w)) &&
+                    ssnWords.every(w => nameWordsSet.has(w))) {
+                    console.log(`✓ Same words match (order-independent): "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                    return ssn;
+                }
+            }
+            
+            // Try matching by last name (most reliable for "Last, First" vs "First Last")
+            if (nameWords.length >= 2) {
+                const lastName = nameWords[nameWords.length - 1]; // Last word is usually last name
                 
                 for (const [ssnName, ssn] of Object.entries(ssnData)) {
-                    const normalizedSsnName = normalize(ssnName);
-                    const ssnWords = normalizedSsnName.split(/[,\s]+/).filter(p => p.length > 0);
-                    
-                    // Check if first word matches (handles truncated names)
-                    if (ssnWords.length > 0 && ssnWords[0] === firstWord && firstWord.length > 3) {
-                        console.log(`✓ First word match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
-                        return ssn;
+                    const ssnWords = getNameWords(ssnName);
+                    if (ssnWords.length >= 2) {
+                        const ssnLastName = ssnWords[ssnWords.length - 1];
+                        // Also check first word (in case format is reversed)
+                        const ssnFirstName = ssnWords[0];
+                        const firstName = nameWords[0];
+                        
+                        // Match if last names match OR if one's last name matches other's first name (reversed format)
+                        if ((lastName === ssnLastName && lastName.length > 2) ||
+                            (lastName === ssnFirstName && lastName.length > 2) ||
+                            (firstName === ssnLastName && firstName.length > 2)) {
+                            console.log(`✓ Last name match: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                            return ssn;
+                        }
                     }
-                    
-                    // Check if last name matches
-                    if (ssnWords.length > 0 && ssnWords[ssnWords.length - 1] === lastWord && lastWord.length > 2) {
-                        console.log(`✓ Last name match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                }
+            }
+            
+            // Try matching first word (for truncated names like "Aldan-Mu" matching "Aldan-Muna, Diana")
+            if (nameWords.length > 0) {
+                const firstWord = nameWords[0];
+                
+                for (const [ssnName, ssn] of Object.entries(ssnData)) {
+                    const ssnWords = getNameWords(ssnName);
+                    if (ssnWords.length > 0 && 
+                        (ssnWords[0] === firstWord || ssnWords[ssnWords.length - 1] === firstWord) &&
+                        firstWord.length > 3) {
+                        console.log(`✓ First word match: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
                         return ssn;
                     }
                 }
@@ -868,7 +909,7 @@
             }
             
             console.log(`✗ No SSN match found for: "${name}"`);
-            console.log(`Available SSN names:`, Object.keys(ssnData));
+            console.log(`Available SSN names:`, Object.keys(ssnData).slice(0, 10)); // Show first 10 for debugging
             return '';
         }
 
