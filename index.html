@@ -759,12 +759,21 @@
                 ssn = ssn.trim().replace(/\D/g, ''); // Remove non-digits
 
                 if (name && ssn && ssn.length === 9) {
-                    if (ssnData[name]) {
+                    // Normalize name for consistent matching (store both original and normalized)
+                    const normalizedName = name.toLowerCase().trim().replace(/\s+/g, ' ');
+                    
+                    // Store with normalized name as key for better matching
+                    // But also store original name mapping for display
+                    if (ssnData[normalizedName]) {
                         updatedCount++;
                     } else {
                         newCount++;
                     }
-                    ssnData[name] = ssn;
+                    ssnData[normalizedName] = ssn;
+                    // Also store original name mapping for display/fallback
+                    if (normalizedName !== name) {
+                        ssnData[name] = ssn;
+                    }
                 }
             });
 
@@ -794,15 +803,62 @@
             }
         }
 
+        function findSsnByName(name) {
+            if (!name) return '';
+            
+            // Normalize the name for matching
+            const normalize = (str) => {
+                return str.toLowerCase().trim().replace(/\s+/g, ' ');
+            };
+            
+            const normalizedName = normalize(name);
+            
+            // Try exact match first (case-insensitive)
+            for (const [ssnName, ssn] of Object.entries(ssnData)) {
+                if (normalize(ssnName) === normalizedName) {
+                    console.log(`Exact match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                    return ssn;
+                }
+            }
+            
+            // Try partial match (contains or is contained)
+            for (const [ssnName, ssn] of Object.entries(ssnData)) {
+                const normalizedSsnName = normalize(ssnName);
+                if (normalizedName.includes(normalizedSsnName) || normalizedSsnName.includes(normalizedName)) {
+                    console.log(`Partial match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                    return ssn;
+                }
+            }
+            
+            // Try matching by last name (for cases like "Last, First" vs "First Last")
+            const nameParts = normalizedName.split(/[,\s]+/).filter(p => p.length > 0);
+            if (nameParts.length >= 2) {
+                for (const [ssnName, ssn] of Object.entries(ssnData)) {
+                    const ssnNameParts = normalize(ssnName).split(/[,\s]+/).filter(p => p.length > 0);
+                    // Check if last names match
+                    const lastName1 = nameParts[nameParts.length - 1];
+                    const lastName2 = ssnNameParts[ssnNameParts.length - 1];
+                    if (lastName1 === lastName2 && lastName1.length > 2) {
+                        console.log(`Last name match found: "${name}" -> "${ssnName}" -> SSN: ${ssn}`);
+                        return ssn;
+                    }
+                }
+            }
+            
+            console.log(`No SSN match found for: "${name}"`);
+            return '';
+        }
+
         function convertToAdamsKeegan() {
             convertedData = [];
             console.log('Starting conversion with', wellskyData.length, 'employees');
+            console.log('Available SSN data:', ssnData);
 
             wellskyData.forEach((employee, empIndex) => {
                 console.log(`Processing employee ${empIndex + 1}:`, employee);
                 
                 const employeeName = employee.name;
-                const ssn = ssnData[employeeName] || '';
+                const ssn = findSsnByName(employeeName);
                 console.log(`Employee: ${employeeName}, SSN: ${ssn}, Details:`, employee.details);
 
                 // Group details by base rate
